@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './pages/LandingPage.jsx';
 import PortalSelection from './pages/PortalSelection.jsx';
 import UserLogin from './pages/UserLogin.jsx';
@@ -22,6 +22,7 @@ function App() {
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/dashboard" element={<UserDashboard />} />
+        <Route path="*" element={<LandingPage />} />
       </Routes>
     </Router>
   );

@@ -81,6 +81,7 @@ const UserLogin = () => {
           )}
 
           <button 
+            type="button"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={() => navigate('/dashboard')}
