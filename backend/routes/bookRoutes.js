@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const multer = require("multer");
 
 const Book = require("../models/Book");
+const { verifyToken, isAdmin } = require("../middleware/auth");
 
 
 // ==========================
@@ -27,7 +28,6 @@ if (!fs.existsSync(uploadDirectory)) {
 const useMockDb = process.env.USE_MOCK_DB === "true";
 const mockBooks = [];
 
-const uploadDirectory = path.join(__dirname, "..", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -36,17 +36,9 @@ const storage = multer.diskStorage({
   },
 
   filename: (_req, file, cb) => {
-    const uniqueName =
-      `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname)}`;
-
-    cb(null, uniqueName);
-  }
-    // Generate a unique filename using timestamp and UUID
     const filenameBase = `${Date.now()}-${crypto.randomUUID()}`;
     const extension = path.extname(file.originalname).toLowerCase() || ".pdf";
     cb(null, `${filenameBase}${extension}`);
-    const filenameBase = `${Date.now()}-${crypto.randomUUID()}`;
-    cb(null, `${filenameBase}${path.extname(file.originalname).toLowerCase() || ".pdf"}`);
   },
 });
 
@@ -95,10 +87,10 @@ const upload = multer({
 // ADMIN ADD BOOK
 // =======================================================
 
-router.post("/add", (req, res) => {
+router.post("/add", verifyToken, isAdmin, (req, res) => {
 
   // Use multer middleware to handle the 'pdf' field
-router.post("/add", (req, res) => {
+router.post("/add", verifyToken, isAdmin, (req, res) => {
   upload.single("pdf")(req, res, async (uploadError) => {
 
     if (uploadError) {
@@ -493,7 +485,7 @@ router.delete("/submissions/:id", async (req, res) => {
 // ==========================
 // DELETE BOOK (FIX MISSING ROUTE)
 // ==========================
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
 
@@ -509,7 +501,7 @@ router.delete("/:id", async (req, res) => {
   }
 });
 module.exports = router;
-router.put("/update/:id", async (req, res) => {
+router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     if (useMockDb) {
       const index = mockBooks.findIndex((book) => book.id === req.params.id);
@@ -544,7 +536,7 @@ router.put("/update/:id", async (req, res) => {
 });
 
 
-router.delete("/delete/:id", async (req, res) => {
+router.delete("/delete/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     if (useMockDb) {
       const index = mockBooks.findIndex((book) => book.id === req.params.id);
