@@ -1,41 +1,39 @@
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-const verifyToken = (req, res, next) => {
+const protect = async (req, res, next) => {
+  let token;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+    token = req.headers.authorization.split(" ")[1];
+  }
+
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
   try {
-    const authHeader = req.header("Authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id).select("-password");
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
-    const token = authHeader.split(" ")[1];
-
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const decodedUser = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decodedUser;
-
-    next();
-  } catch (error) {
+    return next();
+  } catch (_error) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 };
 
-const isAdmin = (req, res, next) => {
-  try {
-    if (!req.user || req.user.role !== "admin") {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    next();
-  } catch (error) {
+const admin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
+  return next();
 };
 
 module.exports = {
-  verifyToken,
-  isAdmin,
+  protect,
+  admin,
+  verifyToken: protect,
+  isAdmin: admin,
 };

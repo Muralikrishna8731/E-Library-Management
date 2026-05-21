@@ -3,43 +3,40 @@ const mongoose = require("mongoose");
 const bookSchema = new mongoose.Schema({
   title: {
     type: String,
-    required: true
+    required: true,
   },
-
   author: {
     type: String,
-    required: true
+    required: true,
   },
-
   category: {
     type: String,
-    default: "Textbooks"
+    default: "General",
   },
-
+  description: {
+    type: String,
+    default: "",
+  },
   pdfUrl: {
-    type: String
+    type: String,
   },
-
   coverUrl: {
     type: String,
-    default: ""
+    default: "",
   },
-
   isPdfVerified: {
     type: Boolean,
-    default: false
+    default: false,
   },
-
   status: {
     type: String,
     enum: ["pending", "published", "approved", "rejected"],
-    default: "pending"
+    default: "pending",
   },
-
   rejectionReason: {
     type: String,
-    default: ""
-  }
+    default: "",
+  },
 });
 
 module.exports = mongoose.model("Book", bookSchema);
