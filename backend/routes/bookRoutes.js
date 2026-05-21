@@ -23,6 +23,12 @@ if (!fs.existsSync(uploadDirectory)) {
 // ==========================
 // Multer Storage
 // ==========================
+// --- Multer Storage Configuration ---
+const useMockDb = process.env.USE_MOCK_DB === "true";
+const mockBooks = [];
+
+const uploadDirectory = path.join(__dirname, "..", "uploads");
+fs.mkdirSync(uploadDirectory, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -35,6 +41,13 @@ const storage = multer.diskStorage({
 
     cb(null, uniqueName);
   }
+    // Generate a unique filename using timestamp and UUID
+    const filenameBase = `${Date.now()}-${crypto.randomUUID()}`;
+    const extension = path.extname(file.originalname).toLowerCase() || ".pdf";
+    cb(null, `${filenameBase}${extension}`);
+    const filenameBase = `${Date.now()}-${crypto.randomUUID()}`;
+    cb(null, `${filenameBase}${path.extname(file.originalname).toLowerCase() || ".pdf"}`);
+  },
 });
 
 
@@ -84,6 +97,8 @@ const upload = multer({
 
 router.post("/add", (req, res) => {
 
+  // Use multer middleware to handle the 'pdf' field
+router.post("/add", (req, res) => {
   upload.single("pdf")(req, res, async (uploadError) => {
 
     if (uploadError) {
@@ -205,6 +220,13 @@ router.post("/submissions/create", (req, res) => {
       let coverPath = "";
       if (req.files["cover"]) {
         coverPath = `/uploads/${req.files["cover"][0].filename}`;
+      const fileHeader = headerBuffer.toString();
+      if (fileHeader !== "%PDF-") {
+        // Clean up invalid file
+      const fileHeader = headerBuffer.toString();
+      if (fileHeader !== "%PDF-") {
+        await fs.promises.unlink(resolvedUploadPath).catch(() => {});
+        return res.status(400).json({ message: "Uploaded file content is not a valid PDF" });
       }
 
       const newSubmission = new Book({
@@ -221,6 +243,25 @@ router.post("/submissions/create", (req, res) => {
 
       res.status(201).json(newSubmission);
 
+      const bookData = {
+        title,
+        author,
+        pdfUrl: `/uploads/${req.file.filename}`,
+      };
+
+      if (useMockDb) {
+        const book = {
+          id: crypto.randomUUID(),
+          ...bookData,
+          createdAt: new Date().toISOString(),
+        };
+        mockBooks.push(book);
+        return res.status(201).json(book);
+      }
+
+      const book = new Book(bookData);
+      await book.save();
+      res.status(201).json(book);
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
@@ -408,6 +449,10 @@ router.get("/", async (req, res) => {
       }
     });
 
+    if (useMockDb) {
+      return res.json(mockBooks);
+    }
+    const books = await Book.find();
     res.json(books);
 
   } catch (error) {
@@ -463,4 +508,69 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+module.exports = router;
+router.put("/update/:id", async (req, res) => {
+  try {
+    if (useMockDb) {
+      const index = mockBooks.findIndex((book) => book.id === req.params.id);
+      if (index === -1) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      mockBooks[index] = {
+        ...mockBooks[index],
+        ...req.body,
+      };
+      return res.status(200).json(mockBooks[index]);
+    }
+
+    const updatedBook = await Book.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!updatedBook) {
+      return res.status(404).json({
+        message: "Book not found",
+      });
+    }
+
+    res.status(200).json(updatedBook);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+});
+
+
+router.delete("/delete/:id", async (req, res) => {
+  try {
+    if (useMockDb) {
+      const index = mockBooks.findIndex((book) => book.id === req.params.id);
+      if (index === -1) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      mockBooks.splice(index, 1);
+      return res.status(200).json({ message: "Book deleted successfully" });
+    }
+
+    const deletedBook = await Book.findByIdAndDelete(req.params.id);
+
+    if (!deletedBook) {
+      return res.status(404).json({
+        message: "Book not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Book deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+});
+
 module.exports = router;
