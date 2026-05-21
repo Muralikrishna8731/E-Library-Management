@@ -9,27 +9,31 @@ const protect = async (req, res, next) => {
   }
 
   if (!token) {
-    return res.status(401).json({ message: "Not authorized, no token provided" });
+    return res.status(401).json({ message: "Unauthorized" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id).select("-password");
     if (!req.user) {
-      return res.status(401).json({ message: "User not found" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Not authorized, token invalid" });
+    return next();
+  } catch (_error) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
 };
 
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
-    next();
-  } else {
-    return res.status(403).json({ message: "Access denied, admin only" });
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Forbidden" });
   }
+  return next();
 };
 
-module.exports = { protect, admin };
+module.exports = {
+  protect,
+  admin,
+  verifyToken: protect,
+  isAdmin: admin,
+};
