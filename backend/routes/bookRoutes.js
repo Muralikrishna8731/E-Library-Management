@@ -7,6 +7,13 @@ const multer = require("multer");
 
 const Book = require("../models/Book");
 
+// --- Configuration & Directory Setup ---
+const uploadDirectory = path.join(__dirname, "..", "uploads");
+if (!fs.existsSync(uploadDirectory)) {
+  fs.mkdirSync(uploadDirectory, { recursive: true });
+}
+
+// --- Multer Storage Configuration ---
 const useMockDb = process.env.USE_MOCK_DB === "true";
 const mockBooks = [];
 
@@ -18,6 +25,10 @@ const storage = multer.diskStorage({
     cb(null, uploadDirectory);
   },
   filename: (_req, file, cb) => {
+    // Generate a unique filename using timestamp and UUID
+    const filenameBase = `${Date.now()}-${crypto.randomUUID()}`;
+    const extension = path.extname(file.originalname).toLowerCase() || ".pdf";
+    cb(null, `${filenameBase}${extension}`);
     const filenameBase = `${Date.now()}-${crypto.randomUUID()}`;
     cb(null, `${filenameBase}${path.extname(file.originalname).toLowerCase() || ".pdf"}`);
   },
@@ -34,6 +45,14 @@ const upload = multer({
   },
 });
 
+// --- Routes ---
+
+/**
+ * POST /add
+ * Handles book creation with PDF upload and validation
+ */
+router.post("/add", (req, res) => {
+  // Use multer middleware to handle the 'pdf' field
 router.post("/add", (req, res) => {
   upload.single("pdf")(req, res, async (uploadError) => {
     if (uploadError) {
@@ -43,6 +62,7 @@ router.post("/add", (req, res) => {
     try {
       const { title, author } = req.body;
 
+      // 1. Basic Validation
       if (!title || !author) {
         return res.status(400).json({ message: "Title and author are required" });
       }
@@ -51,12 +71,14 @@ router.post("/add", (req, res) => {
         return res.status(400).json({ message: "PDF file is required" });
       }
 
+      // 2. Security: Path Traversal Check
       const resolvedUploadPath = path.resolve(req.file.path);
       const resolvedUploadDirectory = `${path.resolve(uploadDirectory)}${path.sep}`;
       if (!resolvedUploadPath.startsWith(resolvedUploadDirectory)) {
         return res.status(400).json({ message: "Invalid upload path" });
       }
 
+      // 3. Deep File Validation: Check Magic Numbers (%PDF-)
       const headerBuffer = Buffer.alloc(5);
       const uploadedFileHandle = await fs.promises.open(resolvedUploadPath, "r");
       try {
@@ -64,11 +86,22 @@ router.post("/add", (req, res) => {
       } finally {
         await uploadedFileHandle.close();
       }
+
+      const fileHeader = headerBuffer.toString();
+      if (fileHeader !== "%PDF-") {
+        // Clean up invalid file
       const fileHeader = headerBuffer.toString();
       if (fileHeader !== "%PDF-") {
         await fs.promises.unlink(resolvedUploadPath).catch(() => {});
         return res.status(400).json({ message: "Uploaded file content is not a valid PDF" });
       }
+
+      // 4. Database Persistence
+      const book = new Book({
+        title,
+        author,
+        pdfUrl: `/uploads/${req.file.filename}`,
+      });
 
       const bookData = {
         title,
@@ -95,6 +128,10 @@ router.post("/add", (req, res) => {
   });
 });
 
+/**
+ * GET /
+ * Retrieves all books
+ */
 router.get("/", async (req, res) => {
   try {
     if (useMockDb) {
