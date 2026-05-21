@@ -62,7 +62,7 @@ exports.login = async (req, res) => {
 
         // 4. Generate JWT Token
         const token = jwt.sign(
-            { id: user._id, name: user.fullName },
+            { id: user._id, name: user.fullName, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
@@ -73,7 +73,8 @@ exports.login = async (req, res) => {
             userId: user._id.toString(), // 👈 FIX: Matches localStorage.setItem('userId', data.userId)
             user: {
                 name: user.fullName,    // 👈 FIX: Matches localStorage.setItem('userName', data.user.name)
-                email: user.email
+                email: user.email,
+                role: user.role
             }
         });
 
