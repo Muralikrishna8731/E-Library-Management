@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -13,6 +16,7 @@ const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 50);
@@ -26,18 +30,43 @@ const AdminLogin = () => {
     };
   }, []);
 
-  const handleAdminLogin = (e) => {
+  const handleAdminLogin = async (e) => {
     e.preventDefault();
-    const VALID_ADMIN_EMAIL = "admin@libraria.com";
-    const VALID_ADMIN_PASS = "admin123";
+    setError('');
+    setIsSubmitting(true);
 
-    if (email === VALID_ADMIN_EMAIL && password === VALID_ADMIN_PASS) {
-      setError('');
-      alert("Access Granted. Redirecting to Admin Dashboard...");
-      navigate('/admin-dashboard'); 
-    } else {
-      setError("Unauthorized! Only authorized administrators can access this portal.");
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.token) {
+        throw new Error('Invalid credentials');
+      }
+
+      const { role } = jwtDecode(data.token);
+
+      if (role !== 'admin') {
+        localStorage.removeItem('libraria_token');
+        setError('Access denied. Admin only.');
+        setPassword('');
+        return;
+      }
+
+      localStorage.setItem('libraria_token', data.token);
+      navigate('/admin-dashboard');
+    } catch (_error) {
+      localStorage.removeItem('libraria_token');
+      setError('Invalid email or password');
       setPassword('');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -75,8 +104,9 @@ const AdminLogin = () => {
 
         <form style={formStyle} onSubmit={handleAdminLogin}>
           <div style={inputGroup}>
-            <label style={labelStyle}>Admin ID</label>
+            <label htmlFor="admin-email" style={labelStyle}>Admin ID</label>
             <input 
+              id="admin-email"
               type="email" 
               required
               placeholder="admin@libraria.com" 
@@ -89,8 +119,9 @@ const AdminLogin = () => {
           </div>
 
           <div style={inputGroup}>
-            <label style={labelStyle}>Security Password</label>
+            <label htmlFor="admin-password" style={labelStyle}>Security Password</label>
             <input 
+              id="admin-password"
               type="password" 
               required
               placeholder="••••••••" 
@@ -112,7 +143,7 @@ const AdminLogin = () => {
               transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
               boxShadow: isHovered ? '0 10px 20px rgba(121, 40, 202, 0.2)' : 'none'
             }}>
-            Authorize Access
+            {isSubmitting ? 'Authorizing...' : 'Authorize Access'}
           </button>
         </form>
 

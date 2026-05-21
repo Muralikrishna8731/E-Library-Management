@@ -28,6 +28,7 @@ const AdminDashboard = () => {
     event.preventDefault();
     setMessage('');
     setError('');
+    const token = localStorage.getItem('libraria_token');
 
     const formData = new FormData();
     formData.append('title', title);
@@ -36,7 +37,10 @@ const AdminDashboard = () => {
 
     try {
       await axios.post(`${API_BASE_URL}/api/books/add`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
       setMessage('Book uploaded successfully.');
       setTitle('');
