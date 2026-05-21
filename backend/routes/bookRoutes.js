@@ -7,6 +7,9 @@ const multer = require("multer");
 
 const Book = require("../models/Book");
 
+const useMockDb = process.env.USE_MOCK_DB === "true";
+const mockBooks = [];
+
 const uploadDirectory = path.join(__dirname, "..", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
@@ -67,12 +70,23 @@ router.post("/add", (req, res) => {
         return res.status(400).json({ message: "Uploaded file content is not a valid PDF" });
       }
 
-      const book = new Book({
+      const bookData = {
         title,
         author,
         pdfUrl: `/uploads/${req.file.filename}`,
-      });
+      };
 
+      if (useMockDb) {
+        const book = {
+          id: crypto.randomUUID(),
+          ...bookData,
+          createdAt: new Date().toISOString(),
+        };
+        mockBooks.push(book);
+        return res.status(201).json(book);
+      }
+
+      const book = new Book(bookData);
       await book.save();
       res.status(201).json(book);
     } catch (error) {
@@ -83,10 +97,77 @@ router.post("/add", (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
+    if (useMockDb) {
+      return res.json(mockBooks);
+    }
     const books = await Book.find();
     res.json(books);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.put("/update/:id", async (req, res) => {
+  try {
+    if (useMockDb) {
+      const index = mockBooks.findIndex((book) => book.id === req.params.id);
+      if (index === -1) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      mockBooks[index] = {
+        ...mockBooks[index],
+        ...req.body,
+      };
+      return res.status(200).json(mockBooks[index]);
+    }
+
+    const updatedBook = await Book.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!updatedBook) {
+      return res.status(404).json({
+        message: "Book not found",
+      });
+    }
+
+    res.status(200).json(updatedBook);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+});
+
+
+router.delete("/delete/:id", async (req, res) => {
+  try {
+    if (useMockDb) {
+      const index = mockBooks.findIndex((book) => book.id === req.params.id);
+      if (index === -1) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      mockBooks.splice(index, 1);
+      return res.status(200).json({ message: "Book deleted successfully" });
+    }
+
+    const deletedBook = await Book.findByIdAndDelete(req.params.id);
+
+    if (!deletedBook) {
+      return res.status(404).json({
+        message: "Book not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Book deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
   }
 });
 
