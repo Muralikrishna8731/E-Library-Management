@@ -2,9 +2,11 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './pages/LandingPage.jsx';
 import PortalSelection from './pages/PortalSelection.jsx';
-import UserLogin from './pages/UserLogin.jsx'; // Add this
-import AdminLogin from './pages/AdminLogin.jsx'; // Add this (after you create the file)
+import UserLogin from './pages/UserLogin.jsx'; 
+import AdminLogin from './pages/AdminLogin.jsx'; 
 import Dashboard from './pages/Dashboard.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx'; // Imported successfully
+
 function App() {
   return (
     <Router>
@@ -19,8 +21,11 @@ function App() {
         <Route path="/user-login" element={<UserLogin />} />
         <Route path="/admin-login" element={<AdminLogin />} />
 
-        {/* Future Dashboard Route Placeholder */}
-       <Route path="/dashboard" element={<Dashboard />} />
+        {/* Dashboards */}
+        <Route path="/dashboard" element={<Dashboard />} />
+        {/* ADDED: Route for Admin Dashboard */}
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          
       </Routes>
     </Router>
   );

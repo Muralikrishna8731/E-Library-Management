@@ -5,6 +5,13 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true }, // We will hash this later!
   role: { type: String, default: 'user' }, // helps distinguish between admin/user
+  
+  // ADDED: Array of Book ObjectIds referencing your Book collection
+  starredBooks: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Book' 
+  }],
+  
   createdAt: { type: Date, default: Date.now }
 });
 

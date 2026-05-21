@@ -4,34 +4,66 @@ const cors = require("cors");
 const path = require("path");
 require("dotenv").config();
 
-// --- 1. Import Routes ---
 const authRoutes = require("./routes/authRoutes");
 const bookRoutes = require("./routes/bookRoutes");
 
 const app = express();
 
-// --- 2. Middleware ---
-app.use(cors());
-app.use(express.json());
+/* =========================
+   CORS FIRST (IMPORTANT)
+========================= */
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"]
+}));
 
-// Serving the 'uploads' folder statically so PDFs can be accessed via URL
+/* =========================
+   BODY PARSERS
+========================= */
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+/* =========================
+   STATIC FILES
+========================= */
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// --- 3. Use Routes ---
-app.use("/api/auth", authRoutes); // Authentication (Register/Login)
-app.use("/api/books", bookRoutes); // Book management (Upload/List)
+/* =========================
+   ROUTES
+========================= */
+app.use("/api/auth", authRoutes);
+app.use("/api/books", bookRoutes);
 
-// --- 4. Database Connection ---
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log("MongoDB connection error:", err));
-
-// --- 5. Base Route ---
+/* =========================
+   BASE ROUTE
+========================= */
 app.get("/", (req, res) => {
-  res.send("E-Library Backend Running");
+  res.send("E-Library Backend Pipeline Active");
 });
 
-// --- 6. Server Start ---
+/* =========================
+   ERROR HANDLER
+========================= */
+app.use((err, req, res, next) => {
+  console.error("UNHANDLED ERROR:", err.stack);
+  res.status(500).json({
+    message: "Server error",
+    error: err.message
+  });
+});
+
+/* =========================
+   DB CONNECT
+========================= */
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB Connected"))
+  .catch(err => console.error("MongoDB error:", err));
+
+/* =========================
+   START SERVER
+========================= */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
