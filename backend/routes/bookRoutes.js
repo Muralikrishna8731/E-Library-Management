@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const multer = require("multer");
+const mongoose = require("mongoose");
 
 const Book = require("../models/Book");
 const { verifyToken, isAdmin } = require("../middleware/auth");
@@ -29,15 +30,17 @@ const upload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
 
     if (file.fieldname === "pdf") {
-      if (file.mimetype === "application/pdf" || ext === ".pdf") return cb(null, true);
-      return cb(new Error("Only PDF files allowed"));
+      if (file.mimetype === "application/pdf" || ext === ".pdf") {
+        return cb(null, true);
+      }
+      return cb(new Error("Only PDF files are allowed"));
     }
 
     if (file.fieldname === "cover") {
       if (file.mimetype.startsWith("image/") || [".png", ".jpg", ".jpeg", ".webp"].includes(ext)) {
         return cb(null, true);
       }
-      return cb(new Error("Only image files allowed"));
+      return cb(new Error("Only image files are allowed"));
     }
 
     return cb(null, true);
@@ -54,149 +57,6 @@ const validatePdfHeader = async (filePath) => {
   }
   return buffer.toString() === "%PDF-";
 };
-
-router.post("/add", verifyToken, isAdmin, (req, res) => {
-  upload.single("pdf")(req, res, async (uploadError) => {
-    if (uploadError) {
-      return res.status(400).json({ message: uploadError.message });
-    }
-
-    try {
-      const { title, author, category, description, coverUrl } = req.body;
-
-      if (!title || !author) {
-        return res.status(400).json({ message: "Title and author required" });
-      }
-      if (!req.file) {
-        return res.status(400).json({ message: "PDF file required" });
-      }
-
-      const isValidPdf = await validatePdfHeader(req.file.path);
-      if (!isValidPdf) {
-        await fs.promises.unlink(req.file.path).catch(() => {});
-        return res.status(400).json({ message: "Invalid PDF file" });
-      }
-
-      const book = new Book({
-        title,
-        author,
-        category: category || "General",
-        description: description || "",
-        coverUrl: coverUrl || "",
-        pdfUrl: `/uploads/${req.file.filename}`,
-        status: "published",
-        rejectionReason: "",
-        isPdfVerified: true,
-      });
-
-      await book.save();
-      return res.status(201).json(book);
-    } catch (error) {
-      return res.status(500).json({ message: error.message });
-    }
-  });
-});
-
-router.post("/submissions/create", (req, res) => {
-  const multiUpload = upload.fields([
-    { name: "pdf", maxCount: 1 },
-    { name: "cover", maxCount: 1 },
-  ]);
-
-  multiUpload(req, res, async (uploadError) => {
-    if (uploadError) {
-      return res.status(400).json({ message: uploadError.message });
-    }
-
-    try {
-      const { title, author, category, description } = req.body;
-      if (!title || !author) {
-        return res.status(400).json({ message: "Title and author required" });
-      }
-      if (!req.files || !req.files.pdf) {
-        return res.status(400).json({ message: "PDF required" });
-      }
-
-      const pdfFile = req.files.pdf[0];
-      const isValidPdf = await validatePdfHeader(pdfFile.path);
-      if (!isValidPdf) {
-        await fs.promises.unlink(pdfFile.path).catch(() => {});
-        return res.status(400).json({ message: "Uploaded file content is not a valid PDF" });
-      }
-
-      const coverPath = req.files.cover ? `/uploads/${req.files.cover[0].filename}` : "";
-
-      const newSubmission = new Book({
-        title,
-        author,
-        category: category || "General",
-        description: description || "",
-        pdfUrl: `/uploads/${pdfFile.filename}`,
-        coverUrl: coverPath,
-        status: "pending",
-        rejectionReason: "",
-        isPdfVerified: true,
-      });
-
-      await newSubmission.save();
-      return res.status(201).json(newSubmission);
-    } catch (error) {
-      return res.status(500).json({ message: error.message });
-    }
-  });
-});
-
-router.get("/submissions", async (_req, res) => {
-  try {
-    const submissions = await Book.find({ status: "pending" });
-    return res.json(submissions);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch books', details: error.message });
-  }
-});
-
-
-// GET single book by id
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (useMockDb) {
-      const book = mockBooks.find(b => b.id === id);
-      if (!book) return res.status(404).json({ message: 'Book not found' });
-      return res.json(book);
-    }
-
-    if (!Book || !Book.findById) {
-      return res.status(500).json({ message: 'Book model not available' });
-    }
-
-    if (!require('mongoose').Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid book id' });
-    }
-
-    const book = await Book.findById(id);
-    if (!book) return res.status(404).json({ message: 'Book not found' });
-    res.json(book);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch book', details: error.message });
-  }
-});
-
-router.delete("/delete/:id", async (req, res) => {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
-router.get("/submissions/my-uploads", async (_req, res) => {
-  try {
-    const submissions = await Book.find({
-      status: { $in: ["pending", "approved", "rejected"] },
-    });
-    return res.json(submissions);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
 
 const reviewSubmission = async (req, res) => {
   try {
@@ -226,8 +86,149 @@ const reviewSubmission = async (req, res) => {
   }
 };
 
-router.post("/review/:id", reviewSubmission);
-router.post("/submissions/review/:id", reviewSubmission);
+router.post(
+  "/add",
+  verifyToken,
+  isAdmin,
+  upload.single("pdf"),
+  async (req, res) => {
+    try {
+      const { title, author, category, description, coverUrl } = req.body;
+
+      if (!title || !author) {
+        return res.status(400).json({ message: "Title and author are required" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "PDF file is required" });
+      }
+
+      const isValidPdf = await validatePdfHeader(req.file.path);
+      if (!isValidPdf) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ message: "Invalid PDF file" });
+      }
+
+      const book = new Book({
+        title,
+        author,
+        category: category || "General",
+        description: description || "",
+        coverUrl: coverUrl || "",
+        pdfUrl: `/uploads/${req.file.filename}`,
+        status: "published",
+        rejectionReason: "",
+        isPdfVerified: true,
+      });
+
+      await book.save();
+      return res.status(201).json(book);
+    } catch (error) {
+      return res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+router.post(
+  "/submissions/create",
+  upload.fields([
+    { name: "pdf", maxCount: 1 },
+    { name: "cover", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { title, author, category, description } = req.body;
+
+      if (!title || !author) {
+        return res.status(400).json({ message: "Title and author are required" });
+      }
+      if (!req.files || !req.files.pdf || req.files.pdf.length === 0) {
+        return res.status(400).json({ message: "PDF file is required" });
+      }
+
+      const pdfFile = req.files.pdf[0];
+      const isValidPdf = await validatePdfHeader(pdfFile.path);
+      if (!isValidPdf) {
+        await fs.promises.unlink(pdfFile.path).catch(() => {});
+        return res.status(400).json({ message: "Uploaded file content is not a valid PDF" });
+      }
+
+      const coverFile = req.files.cover?.[0];
+      const coverPath = coverFile ? `/uploads/${coverFile.filename}` : "";
+
+      const newSubmission = new Book({
+        title,
+        author,
+        category: category || "General",
+        description: description || "",
+        pdfUrl: `/uploads/${pdfFile.filename}`,
+        coverUrl: coverPath,
+        status: "pending",
+        rejectionReason: "",
+        isPdfVerified: true,
+      });
+
+      await newSubmission.save();
+      return res.status(201).json(newSubmission);
+    } catch (error) {
+      return res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+router.get("/submissions", async (_req, res) => {
+  try {
+    const submissions = await Book.find({ status: "pending" });
+    return res.json(submissions);
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch submissions", details: error.message });
+  }
+});
+
+router.get("/submissions/my-uploads", async (_req, res) => {
+  try {
+    const submissions = await Book.find({
+      status: { $in: ["pending", "approved", "rejected"] },
+    });
+    return res.json(submissions);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/review/:id", verifyToken, isAdmin, reviewSubmission);
+router.post("/submissions/review/:id", verifyToken, isAdmin, reviewSubmission);
+
+router.get("/submissions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid submission id" });
+    }
+    const submission = await Book.findById(id);
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+    return res.json(submission);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.delete("/submissions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid submission id" });
+    }
+    const submission = await Book.findByIdAndDelete(id);
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+    return res.json({ message: "Submission deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
 
 router.get("/", async (_req, res) => {
   try {
@@ -243,101 +244,52 @@ router.get("/", async (_req, res) => {
   }
 });
 
-router.delete("/submissions/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const submission = await Book.findById(req.params.id);
-
-    if (!submission) {
-      return res.status(404).json({ message: "Submission not found" });
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
     }
-
-    await Book.findByIdAndDelete(req.params.id);
-    return res.json({ message: "Submission deleted successfully" });
+    const book = await Book.findById(id);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    return res.json(book);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
 });
 
-const updateBook = async (req, res) => {
+router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    const updatedBook = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+    const updatedBook = await Book.findByIdAndUpdate(id, req.body, { new: true });
     if (!updatedBook) {
       return res.status(404).json({ message: "Book not found" });
     }
-    return res.status(200).json(updatedBook);
+    return res.json(updatedBook);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
-};
+});
 
-router.put("/:id", verifyToken, isAdmin, updateBook);
-router.put("/update/:id", verifyToken, isAdmin, updateBook);
-
-const deleteBook = async (req, res) => {
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    const deletedBook = await Book.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+    const deletedBook = await Book.findByIdAndDelete(id);
     if (!deletedBook) {
       return res.status(404).json({ message: "Book not found" });
     }
-
-    res.status(200).json({ message: "Book deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to delete book', details: error.message });
-  }
-});
-
-
-// DELETE by id (new route)
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (useMockDb) {
-      const index = mockBooks.findIndex((book) => book.id === id);
-      if (index === -1) return res.status(404).json({ message: 'Book not found' });
-      mockBooks.splice(index, 1);
-      return res.json({ message: 'Book deleted successfully' });
-    }
-
-    if (!require('mongoose').Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid book id' });
-    }
-
-    const deletedBook = await Book.findByIdAndDelete(id);
-    if (!deletedBook) return res.status(404).json({ message: 'Book not found' });
-    res.json({ message: 'Book deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to delete book', details: error.message });
-  }
-});
-
-// PUT update by id (new route)
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (useMockDb) {
-      const index = mockBooks.findIndex((book) => book.id === id);
-      if (index === -1) return res.status(404).json({ message: 'Book not found' });
-      mockBooks[index] = { ...mockBooks[index], ...req.body };
-      return res.json(mockBooks[index]);
-    }
-
-    if (!require('mongoose').Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid book id' });
-    }
-
-    const updatedBook = await Book.findByIdAndUpdate(id, req.body, { new: true });
-    if (!updatedBook) return res.status(404).json({ message: 'Book not found' });
-    res.json(updatedBook);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update book', details: error.message });
-    }
-    return res.status(200).json({ message: "Book deleted successfully" });
+    return res.json({ message: "Book deleted successfully" });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
-};
-
-router.delete("/delete/:id", verifyToken, isAdmin, deleteBook);
-router.delete("/:id", verifyToken, isAdmin, deleteBook);
+});
 
 module.exports = router;

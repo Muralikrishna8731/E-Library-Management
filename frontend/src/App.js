@@ -1,6 +1,5 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import PortalSelection from './pages/PortalSelection.jsx';
@@ -13,18 +12,10 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Main Entry Point */}
         <Route path="/" element={<LandingPage />} />
-        
-        {/* Portal Choice */}
         <Route path="/get-started" element={<PortalSelection />} />
-        
-        {/* Specific Login Routes */}
         <Route path="/user-login" element={<UserLogin />} />
         <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
-        <Route path="/dashboard" element={<UserDashboard />} />
-        <Route path="*" element={<LandingPage />} />
         <Route
           path="/library"
           element={(
@@ -41,8 +32,8 @@ function App() {
             </ProtectedRoute>
           )}
         />
-
         <Route path="/dashboard" element={<Navigate to="/library" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
