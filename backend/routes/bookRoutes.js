@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const multer = require("multer");
 
 const Book = require("../models/Book");
+const { protect, admin } = require("../middleware/auth");
 
 const uploadDirectory = path.join(__dirname, "..", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
@@ -31,14 +32,14 @@ const upload = multer({
   },
 });
 
-router.post("/add", (req, res) => {
+router.post("/add", protect, admin, (req, res) => {
   upload.single("pdf")(req, res, async (uploadError) => {
     if (uploadError) {
       return res.status(400).json({ message: uploadError.message });
     }
 
     try {
-      const { title, author } = req.body;
+      const { title, author, category, description } = req.body;
 
       if (!title || !author) {
         return res.status(400).json({ message: "Title and author are required" });
@@ -70,6 +71,8 @@ router.post("/add", (req, res) => {
       const book = new Book({
         title,
         author,
+        category: category || "General",
+        description: description || "",
         pdfUrl: `/uploads/${req.file.filename}`,
       });
 
