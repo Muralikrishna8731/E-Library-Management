@@ -1,5 +1,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import PortalSelection from './pages/PortalSelection.jsx';
 import UserLogin from './pages/UserLogin.jsx';
@@ -23,6 +25,24 @@ function App() {
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/dashboard" element={<UserDashboard />} />
         <Route path="*" element={<LandingPage />} />
+        <Route
+          path="/library"
+          element={(
+            <ProtectedRoute>
+              <UserDashboard />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/admin-dashboard"
+          element={(
+            <ProtectedRoute adminOnly>
+              <AdminDashboard />
+            </ProtectedRoute>
+          )}
+        />
+
+        <Route path="/dashboard" element={<Navigate to="/library" replace />} />
       </Routes>
     </Router>
   );
