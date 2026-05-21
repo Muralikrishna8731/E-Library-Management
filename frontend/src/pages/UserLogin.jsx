@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 const UserLogin = () => {
   const navigate = useNavigate();
-  
-  // --- Form & Animation States ---
-  const [isLogin, setIsLogin] = useState(true); // Toggle between Login and Sign Up
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 50);
@@ -20,8 +23,34 @@ const UserLogin = () => {
     };
   }, []);
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin);
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.token) {
+        throw new Error('Invalid credentials');
+      }
+
+      localStorage.setItem('libraria_token', data.token);
+      navigate('/library');
+    } catch (_error) {
+      setError('Invalid email or password');
+      setPassword('');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -43,62 +72,52 @@ const UserLogin = () => {
         </button>
         
         <div style={headerSection}>
-          <div style={iconCircle}>{isLogin ? '👤' : '📝'}</div>
-          <h1 style={{...titleStyle, fontSize: isMobile ? '26px' : '30px'}}>
-            {isLogin ? 'User Login' : 'Create Account'}
-          </h1>
-          <p style={subtitleStyle}>
-            {isLogin ? 'Access your digital library dashboard.' : 'Join the modern library system today.'}
-          </p>
+          <div style={iconCircle}>👤</div>
+          <h1 style={{...titleStyle, fontSize: isMobile ? '26px' : '30px'}}>User Login</h1>
+          <p style={subtitleStyle}>Access your digital library dashboard.</p>
         </div>
 
-        <form style={formStyle} onSubmit={(e) => e.preventDefault()}>
-          {/* New Field for Sign Up */}
-          {!isLogin && (
-            <div style={inputGroup}>
-              <label style={labelStyle}>Full Name</label>
-              <input type="text" placeholder="John Doe" style={inputStyle} />
-            </div>
-          )}
+        {error && <div style={errorBanner}>⚠️ {error}</div>}
 
+        <form style={formStyle} onSubmit={handleLogin}>
           <div style={inputGroup}>
-            <label style={labelStyle}>Email Address</label>
-            <input type="email" placeholder="user@example.com" style={inputStyle} />
+            <label htmlFor="user-email" style={labelStyle}>Email Address</label>
+            <input
+              id="user-email"
+              type="email"
+              placeholder="user@example.com"
+              style={inputStyle}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
           </div>
 
           <div style={inputGroup}>
-            <label style={labelStyle}>Password</label>
-            <input type="password" placeholder="••••••••" style={inputStyle} />
+            <label htmlFor="user-password" style={labelStyle}>Password</label>
+            <input
+              id="user-password"
+              type="password"
+              placeholder="••••••••"
+              style={inputStyle}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
           </div>
-
-          {isLogin && (
-            <div style={actionRow}>
-              <label style={rememberMeStyle}>
-                <input type="checkbox" style={{marginRight: '6px'}} /> Remember me
-              </label>
-              <span style={forgotPass}>Forgot Password?</span>
-            </div>
-          )}
 
           <button 
+            type="submit"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onClick={() => navigate('/dashboard')}
             style={{
               ...loginBtn,
               background: isHovered ? '#1a1a1a' : '#2d3436',
               transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
             }}>
-            {isLogin ? 'Sign In' : 'Register Now'}
+            {isSubmitting ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
-
-        <p style={footerText}>
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <span style={toggleLink} onClick={toggleMode}>
-            {isLogin ? 'Register here' : 'Login here'}
-          </span>
-        </p>
       </div>
     </div>
   );
@@ -157,6 +176,18 @@ const subtitleStyle = { fontSize: '14px', color: '#636e72', fontWeight: '500' };
 const formStyle = { display: 'flex', flexDirection: 'column', gap: '18px' };
 const inputGroup = { display: 'flex', flexDirection: 'column', gap: '6px' };
 const labelStyle = { fontSize: '13px', fontWeight: '600', color: '#2d3436', marginLeft: '5px' };
+const errorBanner = {
+  background: '#fff5f5',
+  color: '#c0392b',
+  padding: '12px',
+  borderRadius: '10px',
+  fontSize: '12px',
+  fontWeight: '600',
+  marginBottom: '20px',
+  border: '1px solid #feb2b2',
+  textAlign: 'center',
+  lineHeight: '1.4',
+};
 
 const inputStyle = {
   width: '100%',
@@ -169,10 +200,6 @@ const inputStyle = {
   background: 'rgba(255,255,255,0.7)',
 };
 
-const actionRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center' };
-const rememberMeStyle = { fontSize: '12px', color: '#636e72', cursor: 'pointer', display: 'flex', alignItems: 'center' };
-const forgotPass = { fontSize: '12px', color: '#4facfe', fontWeight: '700', cursor: 'pointer' };
-
 const loginBtn = {
   padding: '16px',
   borderRadius: '12px',
@@ -183,16 +210,6 @@ const loginBtn = {
   cursor: 'pointer',
   marginTop: '10px',
   transition: 'all 0.3s ease'
-};
-
-const footerText = { textAlign: 'center', fontSize: '14px', color: '#636e72', marginTop: '25px' };
-
-const toggleLink = { 
-  color: '#4facfe', 
-  fontWeight: '700', 
-  cursor: 'pointer',
-  textDecoration: 'underline',
-  marginLeft: '5px'
 };
 
 export default UserLogin;
