@@ -75,11 +75,17 @@ const UserLogin = () => {
       }
 
       if (isLogin) {
-        // Handle successful Login
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('userName', data.user.name);
-        navigate('/dashboard');
-      } else {
+  // Handle successful Login
+  localStorage.setItem('token', data.token);
+  localStorage.setItem('userName', data.user?.name || data.username || 'Reader');
+  
+  // 👇 BULLETPROOF FALLBACK: Grabs it if it's data.userId OR data.user._id
+  const extractedUserId = data.userId || data.user?._id || data.user?.id;
+  
+  localStorage.setItem('userId', extractedUserId); 
+  
+  navigate('/dashboard');
+} else {
         // Handle successful Registration
         alert("Account created successfully! Please log in.");
         setIsLogin(true); // Switch to login view
