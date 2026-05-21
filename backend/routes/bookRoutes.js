@@ -103,44 +103,36 @@ router.get("/", async (req, res) => {
     const books = await Book.find();
     res.json(books);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to fetch books', details: error.message });
   }
 });
 
-router.put("/update/:id", async (req, res) => {
+
+// GET single book by id
+router.get('/:id', async (req, res) => {
   try {
+    const { id } = req.params;
     if (useMockDb) {
-      const index = mockBooks.findIndex((book) => book.id === req.params.id);
-      if (index === -1) {
-        return res.status(404).json({ message: "Book not found" });
-      }
-      mockBooks[index] = {
-        ...mockBooks[index],
-        ...req.body,
-      };
-      return res.status(200).json(mockBooks[index]);
+      const book = mockBooks.find(b => b.id === id);
+      if (!book) return res.status(404).json({ message: 'Book not found' });
+      return res.json(book);
     }
 
-    const updatedBook = await Book.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    if (!updatedBook) {
-      return res.status(404).json({
-        message: "Book not found",
-      });
+    if (!Book || !Book.findById) {
+      return res.status(500).json({ message: 'Book model not available' });
     }
 
-    res.status(200).json(updatedBook);
+    if (!require('mongoose').Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid book id' });
+    }
+
+    const book = await Book.findById(id);
+    if (!book) return res.status(404).json({ message: 'Book not found' });
+    res.json(book);
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    res.status(500).json({ message: 'Failed to fetch book', details: error.message });
   }
 });
-
 
 router.delete("/delete/:id", async (req, res) => {
   try {
@@ -156,18 +148,59 @@ router.delete("/delete/:id", async (req, res) => {
     const deletedBook = await Book.findByIdAndDelete(req.params.id);
 
     if (!deletedBook) {
-      return res.status(404).json({
-        message: "Book not found",
-      });
+      return res.status(404).json({ message: "Book not found" });
     }
 
-    res.status(200).json({
-      message: "Book deleted successfully",
-    });
+    res.status(200).json({ message: "Book deleted successfully" });
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    res.status(500).json({ message: 'Failed to delete book', details: error.message });
+  }
+});
+
+
+// DELETE by id (new route)
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (useMockDb) {
+      const index = mockBooks.findIndex((book) => book.id === id);
+      if (index === -1) return res.status(404).json({ message: 'Book not found' });
+      mockBooks.splice(index, 1);
+      return res.json({ message: 'Book deleted successfully' });
+    }
+
+    if (!require('mongoose').Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid book id' });
+    }
+
+    const deletedBook = await Book.findByIdAndDelete(id);
+    if (!deletedBook) return res.status(404).json({ message: 'Book not found' });
+    res.json({ message: 'Book deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete book', details: error.message });
+  }
+});
+
+// PUT update by id (new route)
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (useMockDb) {
+      const index = mockBooks.findIndex((book) => book.id === id);
+      if (index === -1) return res.status(404).json({ message: 'Book not found' });
+      mockBooks[index] = { ...mockBooks[index], ...req.body };
+      return res.json(mockBooks[index]);
+    }
+
+    if (!require('mongoose').Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid book id' });
+    }
+
+    const updatedBook = await Book.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updatedBook) return res.status(404).json({ message: 'Book not found' });
+    res.json(updatedBook);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update book', details: error.message });
   }
 });
 
